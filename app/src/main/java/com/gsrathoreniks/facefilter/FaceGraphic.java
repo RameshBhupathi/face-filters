@@ -15,12 +15,17 @@
  */
 package com.gsrathoreniks.facefilter;
 
+import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.PointF;
+import android.graphics.drawable.Drawable;
+import android.os.Build;
+import android.support.v4.content.ContextCompat;
+import android.support.v4.graphics.drawable.DrawableCompat;
 
 import com.google.android.gms.vision.face.Face;
 import com.gsrathoreniks.facefilter.camera.GraphicOverlay;
@@ -59,8 +64,9 @@ class FaceGraphic extends GraphicOverlay.Graphic {
     private float mFaceHappiness;
     private Bitmap bitmap;
     private Bitmap op;
+    private String resource;
 
-    FaceGraphic(GraphicOverlay overlay) {
+    FaceGraphic(GraphicOverlay overlay, String resource, Context context) {
         super(overlay);
 
         mCurrentColorIndex = (mCurrentColorIndex + 1) % COLOR_CHOICES.length;
@@ -77,8 +83,30 @@ class FaceGraphic extends GraphicOverlay.Graphic {
         mBoxPaint.setColor(selectedColor);
         mBoxPaint.setStyle(Paint.Style.STROKE);
         mBoxPaint.setStrokeWidth(BOX_STROKE_WIDTH);
-        bitmap = BitmapFactory.decodeResource(getOverlay().getContext().getResources(), R.drawable.snap);
+        if (resource.equalsIgnoreCase("op"))
+            bitmap = BitmapFactory.decodeResource(getOverlay().getContext().getResources(), R.drawable.op);
+        else if (resource.equalsIgnoreCase("snap"))
+            bitmap = BitmapFactory.decodeResource(getOverlay().getContext().getResources(), R.drawable.snap);
+        else if (resource.equalsIgnoreCase("elegante"))
+            bitmap = getBitmapFromVectorDrawable(context, R.drawable.icono_elegante);
+        else if (resource.equalsIgnoreCase("hair"))
+            bitmap = BitmapFactory.decodeResource(getOverlay().getContext().getResources(), R.drawable.hair);
         op = bitmap;
+    }
+
+    public Bitmap getBitmapFromVectorDrawable(Context context, int drawableId) {
+        Drawable drawable = ContextCompat.getDrawable(context, drawableId);
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
+            drawable = (DrawableCompat.wrap(drawable)).mutate();
+        }
+
+        Bitmap bitmap = Bitmap.createBitmap(drawable.getIntrinsicWidth(),
+                drawable.getIntrinsicHeight(), Bitmap.Config.ARGB_8888);
+        Canvas canvas = new Canvas(bitmap);
+        drawable.setBounds(0, 0, canvas.getWidth(), canvas.getHeight());
+        drawable.draw(canvas);
+
+        return bitmap;
     }
 
     void setId(int id) {

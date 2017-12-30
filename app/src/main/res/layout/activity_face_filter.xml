@@ -32,4 +32,51 @@
         android:onClick="takeScreenShot"
         android:padding="10dp"
         android:text="Screen Shot" />
+
+    <LinearLayout
+        android:id="@+id/lay_filters"
+        android:layout_width="match_parent"
+        android:layout_height="100dp"
+        android:layout_alignParentBottom="true"
+        android:orientation="horizontal">
+
+        <ImageButton
+            android:id="@+id/btn_op"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginHorizontal="1dp"
+            android:layout_weight="1"
+            android:layout_gravity="center"
+            android:adjustViewBounds="false"
+            android:background="@drawable/imagebutton_border"
+            android:padding="5dp"
+            android:scaleType="fitCenter"
+            android:src="@drawable/op" />
+
+        <ImageButton
+            android:id="@+id/btn_hair"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_gravity="center"
+            android:layout_marginHorizontal="1dp"
+            android:layout_weight="1"
+            android:adjustViewBounds="false"
+            android:background="@drawable/imagebutton_border"
+            android:padding="5dp"
+            android:scaleType="fitCenter"
+            android:src="@drawable/hair" />
+
+        <ImageButton
+            android:id="@+id/btn_snap"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_gravity="center"
+            android:layout_marginHorizontal="1dp"
+            android:layout_weight="1"
+            android:adjustViewBounds="false"
+            android:background="@drawable/imagebutton_border"
+            android:padding="5dp"
+            android:scaleType="fitCenter"
+            android:src="@drawable/snap" />
+    </LinearLayout>
 </RelativeLayout>

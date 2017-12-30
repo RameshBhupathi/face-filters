@@ -22,7 +22,6 @@ import android.media.projection.MediaProjectionManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
-import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
 import android.support.design.widget.Snackbar;
@@ -33,11 +32,14 @@ import android.support.v7.widget.AppCompatImageView;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.Display;
+import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.OrientationEventListener;
 import android.view.View;
 import android.widget.Button;
+import android.widget.ImageButton;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
 
 import com.google.android.gms.common.ConnectionResult;
@@ -51,7 +53,6 @@ import com.gsrathoreniks.facefilter.camera.CameraSourcePreview;
 import com.gsrathoreniks.facefilter.camera.GraphicOverlay;
 
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -71,6 +72,8 @@ public class FaceFilterActivity extends AppCompatActivity {
     private RelativeLayout topView;
     private Button screenShot;
 
+    private ImageButton btnOp, btnHair, btnSnap;
+
 
     private static final int REQUEST_CODE = 100;
     private static String STORE_DIRECTORY;
@@ -88,6 +91,7 @@ public class FaceFilterActivity extends AppCompatActivity {
     private int mWidth;
     private int mHeight;
     private int mRotation;
+    private LinearLayout layFilters;
     private OrientationChangeCallback mOrientationChangeCallback;
 
 
@@ -125,10 +129,8 @@ public class FaceFilterActivity extends AppCompatActivity {
                                 getApplicationContext()
                                         .getPackageName() + ".provider", file);
                     } else
-                        Uri.fromFile(file);
+                        uri = Uri.fromFile(file);
                     showDialog(uri);
-
-                    Log.e(TAG, "captured image: " + IMAGES_PRODUCED);
                 }
 
             } catch (Exception e) {
@@ -211,16 +213,40 @@ public class FaceFilterActivity extends AppCompatActivity {
         screenShot = (Button) findViewById(R.id.btn_screen_shot);
         mPreview = (CameraSourcePreview) findViewById(R.id.preview);
         mGraphicOverlay = (GraphicOverlay) findViewById(R.id.faceOverlay);
+        btnOp = (ImageButton) findViewById(R.id.btn_op);
+        btnHair = (ImageButton) findViewById(R.id.btn_hair);
+        btnSnap = (ImageButton) findViewById(R.id.btn_snap);
+        layFilters = (LinearLayout) findViewById(R.id.lay_filters);
 
         // call for the projection manager
         mProjectionManager = (MediaProjectionManager) getSystemService(Context.MEDIA_PROJECTION_SERVICE);
 
+        btnHair.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                refreshCameraSource("hair");
+            }
+        });
+
+        btnOp.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                refreshCameraSource("op");
+            }
+        });
+
+        btnSnap.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                refreshCameraSource("snap");
+            }
+        });
 
         // Check for the camera permission before accessing the camera.  If the
         // permission is not granted yet, request permission.
         int rc = ActivityCompat.checkSelfPermission(this, Manifest.permission.CAMERA);
         if (rc == PackageManager.PERMISSION_GRANTED) {
-            createCameraSource();
+            createCameraSource("snap");
         } else {
             requestCameraPermission();
         }
@@ -234,6 +260,14 @@ public class FaceFilterActivity extends AppCompatActivity {
                 Looper.loop();
             }
         }.start();
+
+    }
+
+    public void refreshCameraSource(String resource) {
+        stopmCameraSource();
+        createCameraSource(resource);
+        startCameraSource();
+
     }
 
     /**
@@ -273,7 +307,7 @@ public class FaceFilterActivity extends AppCompatActivity {
      * to other detection examples to enable the barcode detector to detect small barcodes
      * at long distances.
      */
-    private void createCameraSource() {
+    private void createCameraSource(String resource) {
 
         Context context = getApplicationContext();
         FaceDetector detector = new FaceDetector.Builder(context)
@@ -283,7 +317,7 @@ public class FaceFilterActivity extends AppCompatActivity {
                 .build();
 
         detector.setProcessor(
-                new MultiProcessor.Builder<>(new GraphicFaceTrackerFactory())
+                new MultiProcessor.Builder<>(new GraphicFaceTrackerFactory(resource))
                         .build());
 
         if (!detector.isOperational()) {
@@ -363,7 +397,7 @@ public class FaceFilterActivity extends AppCompatActivity {
         if (grantResults.length != 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
             Log.d(TAG, "Camera permission granted - initialize the camera source");
             // we have permission, so create the camerasource
-            createCameraSource();
+            createCameraSource("snap");
             return;
         }
 
@@ -413,9 +447,11 @@ public class FaceFilterActivity extends AppCompatActivity {
             }
         }
     }
-     public void stopmCameraSource(){
+
+    public void stopmCameraSource() {
         mCameraSource.stop();
-     }
+    }
+
     public void takeScreenShot(View view) {
 
         mCameraSource.takePicture(new CameraSource.ShutterCallback() {
@@ -428,15 +464,11 @@ public class FaceFilterActivity extends AppCompatActivity {
             public void onPictureTaken(byte[] bytes) {
                 Bitmap bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.length);
                 BitmapDrawable bd = new BitmapDrawable(topView.getContext().getResources(), bmp);
-               /* if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
-                    mPreview.setBackground(bd);
-                } else {
-                    mPreview.setBackgroundDrawable(bd);
-                }*/
-
-                startProjection();
 
                 screenShot.setVisibility(View.GONE);
+                layFilters.setVisibility(View.GONE);
+                startProjection();
+
                /* //  ShowDialog(bmp);
                 mPreview.
                         ShowDialog(ScreenshotUtils.getScreenShot(FaceFilterActivity.this));*/
@@ -453,9 +485,15 @@ public class FaceFilterActivity extends AppCompatActivity {
      * uses this factory to create face trackers as needed -- one for each individual.
      */
     private class GraphicFaceTrackerFactory implements MultiProcessor.Factory<Face> {
+        private String resource;
+
+        public GraphicFaceTrackerFactory(String resource) {
+            this.resource = resource;
+        }
+
         @Override
         public Tracker<Face> create(Face face) {
-            return new GraphicFaceTracker(mGraphicOverlay);
+            return new GraphicFaceTracker(mGraphicOverlay, resource);
         }
     }
 
@@ -467,9 +505,9 @@ public class FaceFilterActivity extends AppCompatActivity {
         private GraphicOverlay mOverlay;
         private FaceGraphic mFaceGraphic;
 
-        GraphicFaceTracker(GraphicOverlay overlay) {
+        GraphicFaceTracker(GraphicOverlay overlay, String resource) {
             mOverlay = overlay;
-            mFaceGraphic = new FaceGraphic(overlay);
+            mFaceGraphic = new FaceGraphic(overlay, resource, FaceFilterActivity.this);
         }
 
         /**
@@ -513,6 +551,7 @@ public class FaceFilterActivity extends AppCompatActivity {
         LayoutInflater inflater = LayoutInflater.from(this);
         View imgEntryView = inflater.inflate(R.layout.activity_main, null);
         final Dialog dialog = new Dialog(this, android.R.style.Theme_Black_NoTitleBar_Fullscreen); //default fullscreen titlebar
+        dialog.setCanceledOnTouchOutside(true);
         ImageView img = (ImageView) imgEntryView
                 .findViewById(R.id.usericon_large);
         AppCompatImageView shareImg = (AppCompatImageView) imgEntryView
@@ -522,20 +561,48 @@ public class FaceFilterActivity extends AppCompatActivity {
         shareImg.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                dialog.cancel();
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        dialog.cancel();
+                        layFilters.setVisibility(View.VISIBLE);
+                        screenShot.setVisibility(View.VISIBLE);
+                    }
+                });
                 shareBitmap(fileUri);
             }
         });
 
         dialog.setContentView(imgEntryView);
+
+        dialog.setOnKeyListener(new Dialog.OnKeyListener() {
+
+            @Override
+            public boolean onKey(DialogInterface arg0, int keyCode,
+                                 KeyEvent event) {
+                // TODO Auto-generated method stub
+                if (keyCode == KeyEvent.KEYCODE_BACK) {
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            dialog.dismiss();
+                            layFilters.setVisibility(View.VISIBLE);
+                            screenShot.setVisibility(View.VISIBLE);
+                        }
+                    });
+                }
+                return true;
+            }
+        });
         dialog.show();
 
         imgEntryView.setOnClickListener(new View.OnClickListener() {
             public void onClick(View paramView) {
-                dialog.cancel();
                 runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
+                        dialog.cancel();
+                        layFilters.setVisibility(View.VISIBLE);
                         screenShot.setVisibility(View.VISIBLE);
                     }
                 });
@@ -628,25 +695,6 @@ public class FaceFilterActivity extends AppCompatActivity {
         mImageReader = ImageReader.newInstance(mWidth, mHeight, PixelFormat.RGBA_8888, 2);
         mVirtualDisplay = sMediaProjection.createVirtualDisplay(SCREENCAP_NAME, mWidth, mHeight, mDensity, VIRTUAL_DISPLAY_FLAGS, mImageReader.getSurface(), null, mHandler);
         mImageReader.setOnImageAvailableListener(new ImageAvailableListener(), mHandler);
-    }
-
-    private Uri getLocalBitmapUri(Bitmap bmp) {
-        Uri bmpUri = null;
-        File file = new File(getExternalFilesDir(Environment.DIRECTORY_PICTURES), "share_image_" + System.currentTimeMillis() + ".png");
-        FileOutputStream out = null;
-        try {
-            out = new FileOutputStream(file);
-            bmp.compress(Bitmap.CompressFormat.PNG, 90, out);
-            try {
-                out.close();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-            bmpUri = Uri.fromFile(file);
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
-        }
-        return bmpUri;
     }
 
     // This snippet shows the system bars. It does this by removing all the flags
